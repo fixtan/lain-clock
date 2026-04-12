@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.lain-clock",
   "build": {
+    "beforeBuildCommand": "",
     "frontendDist": "../src"
   },
   "app": {
