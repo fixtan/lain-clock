@@ -26,3 +26,12 @@ If you want to build it from source:
 2. Install dependencies
 ```bash
 npm install
+```
+3. Run in dev mode
+```bash
+npm run tauri dev
+```
+
+## 📝 License
+
+This project is open-source. (MIT or Apache 2.0)
