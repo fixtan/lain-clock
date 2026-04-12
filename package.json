@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tauri dev",
-    "build": "tauri build",
+    "build": "echo 'No frontend build needed'",
     "tauri": "tauri"
   },
   "devDependencies": {
