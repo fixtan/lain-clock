@@ -35,7 +35,7 @@ jobs:
       - name: install frontend dependencies
         run: |
           npm install
-          npm install -g @tauri-apps/cli@latest
+          npm install @tauri-apps/cli
 
       - uses: tauri-apps/tauri-action@v0
         env:
@@ -46,3 +46,4 @@ jobs:
           releaseBody: "See the assets below to download for your platform."
           releaseDraft: true
           prerelease: false
+          includeTauriScript: true
