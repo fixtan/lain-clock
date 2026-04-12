@@ -1,5 +1,4 @@
 name: "release"
-
 on:
   push:
     tags:
@@ -12,7 +11,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, ubuntu-22.04, windows-latest]
+        include:
+          - platform: 'macos-latest'
+          - platform: 'windows-latest'
+          - platform: 'ubuntu-22.04'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -33,17 +35,14 @@ jobs:
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libayatana-appindicator3-dev librsvg2-dev
 
       - name: install frontend dependencies
-        run: |
-          npm install
-          npm install @tauri-apps/cli
+        run: npm install
 
-      - uses: tauri-apps/tauri-action@v0
+      - name: build tauri
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: v__VERSION__
           releaseName: "Lain Clock v__VERSION__"
-          releaseBody: "See the assets below to download for your platform."
           releaseDraft: true
           prerelease: false
-          includeTauriScript: true
