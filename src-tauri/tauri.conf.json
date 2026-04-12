@@ -26,6 +26,7 @@
   },
   "bundle": {
     "active": true,
+    "identifier": "com.lain.clock",
     "targets": "all",
     "icon": [
       "icons/32x32.png",
