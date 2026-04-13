@@ -18,21 +18,18 @@
   -webkit-text-size-adjust: 100%;
 }
 
-/* body全体を透明にする */
+/* すべてのレイヤーを透明にする */
+:root,
+html,
 body,
-html {
+#clock-container {
+  /* #app の代わりにこれが入っていればOK */
   margin: 0;
   padding: 0;
   background-color: transparent !important;
   overflow: hidden;
-  /* スクロールバーが出ないように */
 }
 
-/* 時計のコンテナ */
-#clock-container {
-  background-color: transparent !important;
-  /* もし背景画像を指定しているなら、背景色だけ透明にする */
-}
 
 .clock-floating {
   position: absolute;
