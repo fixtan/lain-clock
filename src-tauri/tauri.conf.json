@@ -19,7 +19,7 @@
         "alwaysOnTop": true,
         "shadow": false,
         "resizable": false,
-        "visible": false
+        "visible": true
       }
     ],
     "security": {
