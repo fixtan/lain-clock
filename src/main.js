@@ -359,16 +359,3 @@ tab.addEventListener('touchstart', startTabDrag , { passive: false });
 window.addEventListener('touchmove', doTabDrag  , { passive: false });
 window.addEventListener('touchend',  endTabDrag);
 
-
-  // main.js の一番下に追加
-async function showApp() {
-  const win = window.__TAURI__.window;
-  const current = win.getCurrentWindow ? win.getCurrentWindow() : win.appWindow;
-
-  // 念のため少しだけ待ってから表示（透過処理を確実に行わせるため）
-  setTimeout(async () => {
-    await current.show();
-  }, 100);
-}
-
-showApp();
