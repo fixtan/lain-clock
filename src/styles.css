@@ -21,15 +21,17 @@
 /* すべてのレイヤーを透明にする */
 :root,
 html,
-body,
-#clock-container {
+body
+{
   /* #app の代わりにこれが入っていればOK */
   margin: 0;
   padding: 0;
   background-color: transparent !important;
   overflow: hidden;
 }
-
+#clock-container {
+  cursor: move;
+}
 
 .clock-floating {
   position: absolute;
@@ -47,6 +49,7 @@ body,
   user-select: none;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
+  -webkit-app-region: drag;
   max-width: 100vw;
   max-height: 100vh;
 }
@@ -55,6 +58,7 @@ body,
   width: 100%;
   height: 100%;
   border-radius: 50%;
+  pointer-events: auto;
   border: 0px solid var(--copland-blue, #00e5ff);
   opacity: 0.8;
   background-image: url('./clock-bg-chibi.webp');
