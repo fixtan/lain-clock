@@ -1,37 +1,60 @@
 # Lain Clock
 
-Desktop clock widget built with Tauri v2.
+Desktop clock widget built with Tauri v2 — the desktop edition of the Analog Clock UI on [lain-lab.com](https://lain-lab.com/featured/analog-clock-guide/).
 
-![Lain Clock](src-tauri/icons/128x128.png) ## 🛠️ Features
+![Lain Clock](screenshot.webp)
 
-- Simple and minimalist desktop clock.
-- Cross-platform support (Windows, macOS, Linux).
-- Lightweight and fast (Powered by Rust & Tauri).
+
+## 🛠️ Features
+
+- Transparent, frameless, always-on-top analog clock
+- System config window: dial type (Arabic / Roman), radius, font, colors, size
+- Background skins: 8 presets + add your own images (stored locally, never uploaded)
+- 3 preset slots, JSON export / import of settings
+- Ticking sound and hourly chime
+- Tray icon (show / hide / config / quit)
+- Remembers window position
+- Cross-platform: Windows, macOS (Intel & Apple Silicon), Linux
 
 ## 🚀 Download
 
-You can download the latest version of the installer for your OS from the Releases page:
+Get the latest installer from the Releases page:
 
-👉 [Download Lain Clock](https://github.com/あなたのユーザー名/リポジトリ名/releases/latest)
+👉 [Download Lain Clock](https://github.com/fixtan/lain-clock/releases/latest)
 
-- Windows: `.msi`
-- macOS: `.dmg`
-- Linux: `.deb`
+| OS | File |
+|---|---|
+| Windows | `lain-clock_x.x.x_x64-setup.exe` (or `.msi`) |
+| macOS | `lain-clock_x.x.x_universal.dmg` |
+| Linux (Debian / Ubuntu) | `lain-clock_x.x.x_amd64.deb` |
+| Linux (portable) | `lain-clock_x.x.x_amd64.AppImage` |
+
+**macOS:** if you see "cannot verify the developer", open System Settings → Privacy & Security → **Open Anyway**.
+
+## 🖱️ Usage
+
+- **Drag** the clock to move it
+- **Right-click** for the menu (config, sound, dial numbers, digital clock, hide, quit)
+- Hidden clocks come back from the **tray icon**
+
+Guide (Japanese): https://lain-lab.com/featured/analog-clock-guide/
 
 ## 🔨 Development
 
-If you want to build it from source:
-
-1. Install [Rust](https://www.rust-lang.org/)
+1. Install [Rust](https://www.rust-lang.org/) and [Node.js](https://nodejs.org/)
 2. Install dependencies
-```bash
-npm install
-```
+   ```bash
+   npm install
+   ```
 3. Run in dev mode
-```bash
-npm run tauri dev
-```
+   ```bash
+   npm run dev
+   ```
+
+Releases are built by GitHub Actions when a `v*` tag is pushed.
 
 ## 📝 License
 
-This project is open-source. (MIT or Apache 2.0)
+Source code: MIT or Apache 2.0.
+
+Sound effects are from [効果音ラボ (Sound Effect Lab)](https://soundeffect-lab.info/) and skin images are not covered by this license.
