@@ -1,0 +1,18 @@
+{
+  "defaultSkinId": "chibi",
+  "skins": [
+    { "id": "chibi",    "name": "Chibi",     "url": "/assets/clockSkins/clock-bg-chibi.webp" },
+    { "id": "clasic",   "name": "Classic",   "url": "/assets/clockSkins/clock-bg-clasic.webp" },
+    { "id": "floral",   "name": "Floral",    "url": "/assets/clockSkins/clock-bg-floral.webp" },
+    { "id": "flower",   "name": "Flower",    "url": "/assets/clockSkins/clock-bg-flower.webp" },
+    { "id": "touhou",   "name": "Touhou",    "url": "/assets/clockSkins/clock-bg-TouhouProject.webp" },
+    { "id": "touhou1",  "name": "Touhou 1",  "url": "/assets/clockSkins/clock-bg-TouhouProject1.webp" },
+    { "id": "touhou2",  "name": "Touhou 2",  "url": "/assets/clockSkins/clock-bg-TouhouProject2.webp" },
+    { "id": "wood",     "name": "Wood",      "url": "/assets/clockSkins/clock-bg-wood.webp" }
+  ],
+  "sounds": {
+    "click": "/assets/se/click.mp3",
+    "tick":  "/assets/se/tick.mp3",
+    "chime": "/assets/se/chime.mp3"
+  }
+}

@@ -1,361 +1,217 @@
-// main.js
-const { Window } = window.__TAURI__;
-const appWindow = window.__TAURI__.window.appWindow;
-document.documentElement.style.backgroundColor = 'transparent';
-document.body.style.backgroundColor = 'transparent';
+// main.js — 時計ウィンドウ（透過・枠なし・最前面）
+import {
+  loadConfig, commitConfig, onConfigChanged, loadAssets, skinDb,
+  createSounds, playSE, invoke, ROMAN_NUMS,
+} from './common.js';
 
-// 右クリックメニューの「終了」アクションに追加
-document.querySelector('[data-action="hide"]').addEventListener('click', async (e) => {
-  e.stopPropagation(); // メニューが閉じるのを待たずに
-  const win = window.__TAURI__.window;
-  const current = win.getCurrentWindow ? win.getCurrentWindow() : win.appWindow;
-  await current.close(); // これでアプリが完全に終了します
-});
+const T = window.__TAURI__;
+const appWindow = T.window.getCurrentWindow();
+const LogicalSize = (T.dpi ?? T.window).LogicalSize;
 
-// リスナーを外せるように関数を外に出しておく
-const onMouseMove = (e) => {
-  doDrag(e);
-  doTabDrag(e);
-};
-const onMouseUp = () => {
-  endDrag();
-  endTabDrag();
-};
+// 時計の周りの余白（グロー用）。ウィンドウサイズ = clockSize + WINDOW_PAD
+const WINDOW_PAD = 20;
 
-// 初期化関数
-function initEvents() {
-  // 二重登録を防ぐために一度消す
-  window.removeEventListener('mousemove', onMouseMove);
-  window.removeEventListener('mouseup', onMouseUp);
-  window.removeEventListener('touchmove', onMouseMove);
-  window.removeEventListener('touchend', onMouseUp);
+let config = loadConfig();
+let assets = null;
+let sounds = {};
+let activeSkinBlobUrl = null;
+let lastWindowSize = 0;
 
-  // 改めて登録
-  window.addEventListener('mousemove', onMouseMove);
-  window.addEventListener('mouseup', onMouseUp);
-  window.addEventListener('touchmove', onMouseMove, { passive: false });
-  window.addEventListener('touchend', onMouseUp);
+// ─── 見た目の反映 ───
+function renderClockNumbers() {
+  const group = document.getElementById('clock-numbers');
+  group.innerHTML = '';
+  for (let i = 1; i <= 12; i++) {
+    const angle = (i * 30 - 90) * (Math.PI / 180);
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', (50 + config.numRadius * Math.cos(angle)).toFixed(2));
+    text.setAttribute('y', (50 + config.numRadius * Math.sin(angle)).toFixed(2));
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('dominant-baseline', 'central');
+    text.setAttribute('class', 'clock-number-text');
+    text.style.fontFamily = config.fontFamily;
+    text.style.fontSize = `${config.numSize}px`;
+    text.style.fill = config.numColor;
+    text.textContent = config.numType === 'roman' ? ROMAN_NUMS[i - 1] : String(i);
+    group.appendChild(text);
+  }
 }
 
-// 実行
-initEvents();
+async function applyWindowSize() {
+  const size = config.clockSize + WINDOW_PAD;
+  if (size === lastWindowSize) return;
+  lastWindowSize = size;
+  try {
+    await appWindow.setSize(new LogicalSize(size, size));
+  } catch (e) {
+    console.error('[Clock] setSize failed:', e);
+  }
+}
 
-// -------------------------------------------------------
-// 針アニメーション
-// -------------------------------------------------------
-function updateClock() {
-  // 1. まず要素を取得して変数に入れる
-  const secondEl = document.getElementById('second');
-  const minuteEl = document.getElementById('minute');
-  const hourEl   = document.getElementById('hour');
+function applyConfigToUI() {
+  document.getElementById('clock-numbers').style.display = config.showNumbers ? 'block' : 'none';
+  document.getElementById('digital-group').style.display = config.showDigital ? 'block' : 'none';
 
-  // 2. 全ての要素が存在するかチェック（一つでも欠けていたら即終了）
-  if (!secondEl || !minuteEl || !hourEl) {
-    return;
+  const digitalTime = document.getElementById('digital-time');
+  digitalTime.style.fontFamily = config.fontFamily;
+  digitalTime.style.fontSize = `${config.digSize}px`;
+  digitalTime.style.fill = config.digColor;
+  document.getElementById('tz-label').style.fontFamily = config.fontFamily;
+
+  renderClockNumbers();
+  applyWindowSize();
+}
+
+async function loadActiveSkin() {
+  const clockEl = document.getElementById('analog-clock');
+
+  if (activeSkinBlobUrl) {
+    URL.revokeObjectURL(activeSkinBlobUrl);
+    activeSkinBlobUrl = null;
   }
 
-  // 3. 存在が確定したのでスタイルを適用
+  const defaultUrl = assets?.skins?.[0]?.url || '/clock-bg-chibi.webp';
+
+  if (config.activeSkinId) {
+    try {
+      const skin = await skinDb.get(config.activeSkinId);
+      if (skin?.data) {
+        if (activeSkinBlobUrl) URL.revokeObjectURL(activeSkinBlobUrl);
+        activeSkinBlobUrl = URL.createObjectURL(skin.data);
+        clockEl.style.backgroundImage = `url("${activeSkinBlobUrl}")`;
+        return;
+      }
+    } catch {}
+
+    const preset = assets?.skins?.find((s) => s.id === config.activeSkinId);
+    if (preset) {
+      clockEl.style.backgroundImage = `url("${preset.url}")`;
+      return;
+    }
+  }
+
+  clockEl.style.backgroundImage = `url("${defaultUrl}")`;
+}
+
+// ─── 針（描画ループ） ───
+function updateClock() {
   const now = new Date();
-  const s = now.getSeconds();
+  const ms = config.isSmooth ? now.getMilliseconds() : 0;
+  const rawSec = now.getSeconds();
+  const s = rawSec + ms / 1000;
   const m = now.getMinutes();
   const h = now.getHours();
 
-  secondEl.style.transform = `rotate(${(s / 60) * 360}deg)`;
-  minuteEl.style.transform = `rotate(${(m / 60) * 360 + (s / 60) * 6}deg)`;
-  hourEl.style.transform   = `rotate(${(h / 12) * 360 + (m / 60) * 30}deg)`;
+  document.getElementById('second').style.transform = `rotate(${(s / 60) * 360}deg)`;
+  document.getElementById('minute').style.transform = `rotate(${(m / 60) * 360 + (s / 60) * 6}deg)`;
+  document.getElementById('hour').style.transform   = `rotate(${(h / 12) * 360 + (m / 60) * 30}deg)`;
 
-  // 4. 次のフレームを予約
+  document.getElementById('digital-time').textContent =
+    `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(rawSec).padStart(2, '0')}`;
+
   requestAnimationFrame(updateClock);
 }
-updateClock();
 
-// -------------------------------------------------------
-// 要素取得
-// -------------------------------------------------------
+// ─── 音（rAF はウィンドウが隠れると止まるので setInterval で分離） ───
+let lastTickSecond = -1;
+let lastChimeHour = -1;
 
-const clock = document.getElementById('clock-container');
-const menu  = document.getElementById('clock-context-menu');
-const tab   = document.getElementById('clock-tab');
+function startSoundTimer() {
+  const now = new Date();
+  lastTickSecond = now.getSeconds();
+  lastChimeHour = now.getMinutes() === 0 ? now.getHours() : -1;
 
-// -------------------------------------------------------
-// HIDE：時計フェードアウト → タブ出現
-// -------------------------------------------------------
-function hideClock() {
-  clock.style.transition = 'opacity 0.45s ease, width 0.3s ease, height 0.3s ease, transform 0.3s ease';
-  clock.style.opacity = '0';
-  clock.style.pointerEvents = 'none';
+  setInterval(() => {
+    const d = new Date();
+    const s = d.getSeconds(), m = d.getMinutes(), h = d.getHours();
 
-  setTimeout(() => {
-    clock.style.display = 'none';
-
-    // タブを右端外から現れるようにリセット
-    tab.style.transition = 'none';
-    tab.style.opacity    = '0';
-    tab.style.transform  = 'translateX(100%)';
-    tab.classList.remove('hidden');
-
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        tab.style.transition = 'transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s ease';
-        tab.style.transform  = 'translateX(0)';
-        tab.style.opacity    = '1';
-      });
-    });
-  }, 450);
-}
-
-// -------------------------------------------------------
-// SHOW：タブフェードアウト → 時計フェードイン
-// -------------------------------------------------------
-function showClock() {
-  tab.style.transition = 'transform 0.25s ease, opacity 0.25s ease';
-  tab.style.transform  = 'translateX(100%)';
-  tab.style.opacity    = '0';
-
-  setTimeout(() => {
-    tab.classList.add('hidden');
-
-    clock.style.display       = 'block';
-    clock.style.opacity       = '0';
-    clock.style.pointerEvents = 'auto';
-
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        clock.style.transition = 'opacity 0.45s ease, width 0.3s ease, height 0.3s ease, transform 0.3s ease';
-        clock.style.opacity    = '1';
-      });
-    });
-  }, 250);
-}
-
-// -------------------------------------------------------
-// 右クリックメニュー
-// -------------------------------------------------------
-function showMenu(x, y) {
-  updateSliderRange(); // 画面回転やリサイズに対応
-  const menuWidth  = 160;
-  const menuHeight = 170;
-  if (x + menuWidth  > window.innerWidth)  x -= menuWidth;
-  if (y + menuHeight > window.innerHeight) y -= menuHeight;
-  menu.style.left = `${x}px`;
-  menu.style.top  = `${y}px`;
-  menu.classList.remove('hidden');
-}
-
-clock.oncontextmenu = (e) => { e.preventDefault(); showMenu(e.clientX, e.clientY); };
-
-// スマホ長押し
-let touchTimer;
-clock.addEventListener('touchstart', (e) => {
-  touchTimer = setTimeout(() => { const t = e.touches[0]; showMenu(t.clientX, t.clientY); }, 600);
-});
-clock.addEventListener('touchend',  () => clearTimeout(touchTimer));
-clock.addEventListener('touchmove', () => clearTimeout(touchTimer));
-
-window.addEventListener('click', () => menu.classList.add('hidden'));
-
-// スライダー（サイズ変更）
-const sizeSlider = document.getElementById('size-slider');
-const sizeValue  = document.getElementById('size-value');
-
-function updateSliderRange() {
-  // 画面の短い方の 90% を最大値にする
-  //const maxSafeSize = Math.floor(Math.min(window.innerWidth, window.innerHeight) * 0.9);
-  //sizeSlider.max = maxSafeSize.toString();
-  const maxSafeSize = Math.floor(Math.min(screen.width, screen.height) * 0.8);
-  sizeSlider.max = maxSafeSize.toString();
-}
-// -------------------------------------------------------
-// メニュー項目の処理
-// -------------------------------------------------------
-// applySize 関数を以下のように修正
-async function applySize(size) {
-  const numSize = typeof size === 'string' ? parseInt(size) : size;
-  const dim = `${numSize}px`;
-
-  // 1. ラベルとスライダー位置の更新
-  sizeValue.textContent = numSize.toString();
-  sizeSlider.value = numSize.toString();
-
-  // 2. HTML要素（時計）のスタイル更新
-  clock.style.width = dim;
-  clock.style.height = dim;
-
-  // 3. 【重要】Tauriのウィンドウサイズ自体を変更する
-  try {
-    const { LogicalSize } = window.__TAURI__.window;
-    const win = window.__TAURI__.window;
-    const current = win.getCurrentWindow ? win.getCurrentWindow() : win.appWindow;
-
-    // ウィンドウの幅と高さを、時計のサイズ + 少しの余白(メニュー表示用など)に変更
-    // メニューがはみ出さないように、少し余裕（+100pxなど）を持たせても良いです
-    //await current.setSize(new LogicalSize(numSize, numSize));
-    await current.setSize(new LogicalSize(numSize + 20, numSize + 20));
-  } catch (err) {
-    console.error("Failed to resize window:", err);
-  }
-}
-
-// スライダーを動かした時の処理
-sizeSlider.addEventListener('input', (e) => {
-  const val = (e.target ).value;
-  applySize(parseInt(val));
-  localStorage.setItem('clock-size', val);
-});
-
-
-function applyTheme(theme) {
-  const color = theme === 'wired' ? '#00ff88' : '#00e5ff';
-  clock.style.setProperty('--copland-blue', color);
-  menu.style.setProperty('--copland-blue', color);
-  tab.style.setProperty('--copland-blue', color);
-}
-
-menu.querySelectorAll('li').forEach(item => {
-  item.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const action = item.getAttribute('data-action') ?? '';
-    if (action === 'hide') {
-      menu.classList.add('hidden');
-      hideClock();
-      return;
+    if (!config.isSmooth && s !== lastTickSecond && !document.hidden) {
+      playSE(config, sounds.tick);
     }
-    if (action.startsWith('resize-')) {
-      applySize(action.replace('resize-', ''));
-      localStorage.setItem('clock-size', action.replace('resize-', ''));
+    lastTickSecond = s;
+
+    if (m === 0 && lastChimeHour !== h) {
+      playSE(config, sounds.chime);
+      lastChimeHour = h;
     }
-    if (action.startsWith('theme-')) {
-      applyTheme(action.replace('theme-', ''));
-      localStorage.setItem('clock-theme', action.replace('theme-', ''));
-    }
-    menu.classList.add('hidden');
+  }, 200);
+}
+
+// ─── 右クリック：ネイティブメニュー ───
+let contextMenu = null;
+const checks = {};
+
+async function toggle(key) {
+  config[key] = !config[key];
+  applyConfigToUI();
+  playSE(config, sounds.click);
+  await commitConfig(config);
+}
+
+async function buildContextMenu() {
+  const { Menu, MenuItem, CheckMenuItem, PredefinedMenuItem } = T.menu;
+
+  checks.isSmooth       = await CheckMenuItem.new({ text: 'Smooth Movement', checked: config.isSmooth,       action: () => toggle('isSmooth') });
+  checks.isSoundEnabled = await CheckMenuItem.new({ text: 'Sound',           checked: config.isSoundEnabled, action: () => toggle('isSoundEnabled') });
+  checks.showNumbers    = await CheckMenuItem.new({ text: 'Dial Numbers',    checked: config.showNumbers,    action: () => toggle('showNumbers') });
+  checks.showDigital    = await CheckMenuItem.new({ text: 'Digital Clock',   checked: config.showDigital,    action: () => toggle('showDigital') });
+
+  contextMenu = await Menu.new({
+    items: [
+      await MenuItem.new({ text: '⚙ System Config…', action: () => invoke('open_config') }),
+      await PredefinedMenuItem.new({ item: 'Separator' }),
+      checks.isSmooth,
+      checks.isSoundEnabled,
+      checks.showNumbers,
+      checks.showDigital,
+      await PredefinedMenuItem.new({ item: 'Separator' }),
+      await MenuItem.new({ text: 'Hide (to tray)', action: () => invoke('hide_clock') }),
+      await MenuItem.new({ text: '❓ Help & Guide', action: () => T.opener.openUrl('https://lain-lab.com/featured/analog-clock-guide/') }),
+      await PredefinedMenuItem.new({ item: 'Separator' }),
+      await MenuItem.new({ text: 'Quit', action: () => invoke('quit_app') }),
+    ],
   });
-});
+}
 
-// --- 初期設定 ---
-const savedSize = localStorage.getItem('clock-size');
-const initialSize = savedSize ? parseInt(savedSize) : 200;// サイズの初期値
-
-// 1. まずスライダー自体の値を更新
-updateSliderRange();
-// 2. その後、時計の見た目とラベルを更新
-applySize(initialSize);
-
-applyTheme(localStorage.getItem('clock-theme') || 'terminal');
-
-// -------------------------------------------------------
-// 時計ドラッグ移動（元の実装そのまま）
-// -------------------------------------------------------
-let isDragging = false;
-let offsetX = 0, offsetY = 0;
-
-const startDrag = async (e) => {
-  if ((e).button === 2) return;
-  try {
-      // window.__TAURI__.window.getCurrentWindow().startDragging() // Tauri v2の場合
-      // window.__TAURI__.window.appWindow.startDragging()         // Tauri v1の場合
-
-      const win = window.__TAURI__.window;
-      const current = win.getCurrentWindow ? win.getCurrentWindow() : win.appWindow;
-
-      await current.startDragging();
-  } catch (err) {
-    console.error("Dragging failed", err);
+async function showContextMenu() {
+  if (!contextMenu) await buildContextMenu();
+  for (const [key, item] of Object.entries(checks)) {
+    await item.setChecked(!!config[key]);
   }
-  isDragging = true;
-  const clientX = e instanceof TouchEvent ? e.touches[0].clientX : e.clientX;
-  const clientY = e instanceof TouchEvent ? e.touches[0].clientY : e.clientY;
-  const rect = clock.getBoundingClientRect();
-  if (clock.style.transform.includes('translate')) {
-    clock.style.transform = 'none';
-    clock.style.left  = `${rect.left}px`;
-    clock.style.top   = `${rect.top}px`;
-    clock.style.right = 'auto';
-  }
-  offsetX = clientX - rect.left;
-  offsetY = clientY - rect.top;
-  clock.style.transition = 'none';
-};
+  playSE(config, sounds.click);
+  await contextMenu.popup();
+}
 
-const doDrag = (e) => {
-  if (!isDragging) return;
-  const clientX = e instanceof TouchEvent ? e.touches[0].clientX : e.clientX;
-  const clientY = e instanceof TouchEvent ? e.touches[0].clientY : e.clientY;
-  const maxX = window.innerWidth  - clock.offsetWidth;
-  const maxY = window.innerHeight - clock.offsetHeight;
-  clock.style.left = `${Math.max(0, Math.min(clientX - offsetX, maxX))}px`;
-  clock.style.top  = `${Math.max(0, Math.min(clientY - offsetY, maxY))}px`;
-};
+// ─── 初期化 ───
+async function init() {
+  assets = await loadAssets();
+  sounds = createSounds(assets);
 
-const endDrag = () => {
-  isDragging = false;
-  clock.style.transition = 'opacity 0.45s ease, width 0.3s ease, height 0.3s ease, transform 0.3s ease';
-};
+  applyConfigToUI();
+  loadActiveSkin();
+  updateClock();
+  startSoundTimer();
 
-clock.addEventListener('mousedown',  startDrag);
-window.addEventListener('mousemove', doDrag);
-window.addEventListener('mouseup',   endDrag);
-//clock.addEventListener('touchstart', startDrag as EventListener, { passive: false });
-clock.addEventListener('touchstart', startDrag, { passive: false });
-//window.addEventListener('touchmove', doDrag   as EventListener, { passive: false });
-window.addEventListener('touchmove', doDrag   , { passive: false });
-window.addEventListener('touchend',  endDrag);
+  const clock = document.getElementById('clock-container');
 
-// -------------------------------------------------------
-// CLOCKタブの上下ドラッグ（右端に張り付いたまま）
-// -------------------------------------------------------
-let tabDragging = false;
-let tabMoved    = false;
-let tabOffsetY  = 0;
+  // 左ドラッグでウィンドウごと移動
+  clock.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    appWindow.startDragging().catch((err) => console.error('[Clock] drag failed:', err));
+  });
 
-const startTabDrag = (e) => {
-  tabDragging = true;
-  tabMoved    = false;
-  const clientY = e instanceof TouchEvent ? e.touches[0].clientY : (e ).clientY;
-  // top が未設定（transform:translateY(-50%)）の場合は getBoundingClientRect で実座標を取得
-  const rect = tab.getBoundingClientRect();
-  tabOffsetY = clientY - rect.top;
-  tab.style.transition = 'none';
-  tab.style.transform  = 'translateX(0)'; // Y中央寄せを解除してtopで制御
-  tab.style.top        = `${rect.top}px`;
-  //e.preventDefault();
-  e.stopPropagation();
-};
+  document.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    showContextMenu().catch((err) => console.error('[Clock] menu failed:', err));
+  });
 
-const doTabDrag = (e) => {
-  if (!tabDragging) return;
+  // 設定ウィンドウでの変更を反映
+  await onConfigChanged(() => {
+    config = loadConfig();
+    applyConfigToUI();
+    // リセット等でIDが同じまま中身が変わることがあるので毎回読み直す
+    loadActiveSkin();
+  });
+}
 
-  // ブラウザのスクロール動作を完全にストップさせる
-  if (e.cancelable) e.preventDefault();
-
-  tabMoved = true;
-  const clientY = e instanceof TouchEvent ? e.touches[0].clientY : (e).clientY;
-
-  // 画面外にはみ出さないための計算
-  const maxY = window.innerHeight - tab.offsetHeight;
-  const newTop = Math.max(0, Math.min(clientY - tabOffsetY, maxY));
-
-  // スムーズに動かすため、移動中だけは transition を確実に zero にする（念押し）
-  tab.style.transition = 'none';
-  tab.style.top = `${newTop}px`;
-};
-
-const endTabDrag = () => {
-  if (!tabDragging) return;
-  tabDragging = false;
-  tab.style.transition = 'background 0.25s ease, box-shadow 0.25s ease';
-};
-
-// click はドラッグでなかった時だけ showClock を発火
-tab.addEventListener('click', (e) => {
-  if (tabMoved) { tabMoved = false; return; }
-  showClock();
-});
-
-tab.addEventListener('mousedown',  startTabDrag);
-window.addEventListener('mousemove', doTabDrag);
-window.addEventListener('mouseup',   endTabDrag);
-tab.addEventListener('touchstart', startTabDrag , { passive: false });
-window.addEventListener('touchmove', doTabDrag  , { passive: false });
-window.addEventListener('touchend',  endTabDrag);
-
+init();

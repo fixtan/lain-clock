@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lain Clock — System Configuration</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="/settings.js"></script>
+  </head>
+
+  <body class="settings-window">
+    <header class="settings-header">⚙ SYSTEM CONFIGURATION</header>
+
+    <nav class="modal-tabs">
+      <button class="tab-btn active" data-tab="tab-dial">DIAL & TEXT</button>
+      <button class="tab-btn" data-tab="tab-presets">PRESETS & DATA</button>
+      <button class="tab-btn" data-tab="tab-skins">BG SKINS</button>
+    </nav>
+
+    <!-- TAB 1: DIAL & TEXT -->
+    <section id="tab-dial" class="tab-content active">
+      <div class="config-grid">
+        <label>Clock Size: <span id="val-clock-size">180</span>px</label>
+        <input type="range" id="cfg-clock-size" min="80" max="500" step="5">
+
+        <label>Dial Type:</label>
+        <select id="cfg-num-type">
+          <option value="arabic">Arabic (1, 2, 3...)</option>
+          <option value="roman">Roman (Ⅰ, Ⅱ, Ⅲ...)</option>
+        </select>
+
+        <label>Dial Radius: <span id="val-num-radius">35</span></label>
+        <input type="range" id="cfg-num-radius" min="20" max="42" step="1">
+
+        <label>Dial Num Size: <span id="val-num-size">5</span></label>
+        <input type="range" id="cfg-num-size" min="2" max="10" step="0.5">
+
+        <label>Digital Size: <span id="val-dig-size">5.5</span></label>
+        <input type="range" id="cfg-dig-size" min="2" max="10" step="0.5">
+
+        <label>Font Family:</label>
+        <select id="cfg-font-family">
+          <option value="monospace">Monospace</option>
+          <option value="sans-serif">Sans-Serif</option>
+          <option value="serif">Serif</option>
+          <option value="'Courier New', monospace">Courier New</option>
+        </select>
+
+        <div class="color-pickers">
+          <div>
+            <label>Dial Color</label>
+            <input type="color" id="cfg-num-color">
+          </div>
+          <div>
+            <label>Digital Color</label>
+            <input type="color" id="cfg-dig-color">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: PRESETS & DATA -->
+    <section id="tab-presets" class="tab-content">
+      <div class="section-title">PRESET SLOTS</div>
+      <div class="preset-buttons">
+        <button class="btn" id="btn-save-1">Save 1</button>
+        <button class="btn" id="btn-load-1">Load 1</button>
+        <button class="btn" id="btn-save-2">Save 2</button>
+        <button class="btn" id="btn-load-2">Load 2</button>
+        <button class="btn" id="btn-save-3">Save 3</button>
+        <button class="btn" id="btn-load-3">Load 3</button>
+      </div>
+
+      <div class="section-title">EXPORT / IMPORT</div>
+      <div class="io-buttons">
+        <button class="btn" id="btn-export-json">Export Config (.json)</button>
+        <button class="btn" id="btn-import-trigger">Import Config (.json)</button>
+        <input type="file" id="cfg-json-file" accept=".json,application/json" class="hidden">
+      </div>
+
+      <div class="section-title danger-zone">DANGER ZONE</div>
+      <button class="btn btn-danger" id="btn-all-reset">RESET ALL DATA & SKINS</button>
+    </section>
+
+    <!-- TAB 3: BG SKINS -->
+    <section id="tab-skins" class="tab-content">
+      <button class="btn" id="btn-add-skin">Add New Background Image</button>
+      <input type="file" id="skin-file-input" accept="image/*" class="hidden">
+      <div class="section-title">SAVED SKINS</div>
+      <div id="skin-gallery" class="skin-gallery"></div>
+    </section>
+
+    <footer id="status-line" class="status-line"></footer>
+  </body>
+</html>
